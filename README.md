@@ -1,7 +1,7 @@
 # 🌲 PINECONe
 
 **Pine Ecosystem Carbon and Economics RX Fire Analysis**
-
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18419563.svg)](https://doi.org/10.5281/zenodo.18419563)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/NASA-EarthRISE/PINECONe/blob/main/PINECONe_Demo.ipynb)
@@ -9,6 +9,8 @@
 A Python package for analyzing prescribed fire impacts on forest ecosystems, combining remote sensing data, carbon accounting, and economic valuation.
 
 ---
+
+Mayer, T., Walker, K., & Basu, R. (2026). NASA-EarthRISE/PINECONe: v0.1.0 (v0.1.0). Zenodo. https://doi.org/10.5281/zenodo.18419563
 
 ## 📋 Table of Contents
 
