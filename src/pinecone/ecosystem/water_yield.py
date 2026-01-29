@@ -92,9 +92,19 @@ class WaterYieldCalculator:
             maxPixels=1e13
         )
         
+        # Check if we got valid data
+        et_info = et_stats.getInfo()
+        precip_info = precip_stats.getInfo()
+        
+        if 'ET' not in et_info or et_info['ET'] is None:
+            raise ValueError("No ET data available for the specified date range and area")
+        
+        if 'ppt' not in precip_info or precip_info['ppt'] is None:
+            raise ValueError("No precipitation data available for the specified date range and area")
+        
         # Get values
-        et_mean = ee.Number(et_stats.get('ET'))
-        precip_mean = ee.Number(precip_stats.get('ppt'))
+        et_mean = ee.Number(et_info['ET'])
+        precip_mean = ee.Number(precip_info['ppt'])
         
         # Calculate per-acre values ($/acre)
         precip_per_acre = (precip_mean

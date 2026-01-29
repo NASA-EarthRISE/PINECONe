@@ -1,6 +1,7 @@
 """
 Total Economic Value (TEV) calculator for prescribed fire analysis.
-Integrates biomass stats and carbon emissions to calculate economic value.
+Integrates biomass stats, carbon emissions, and water yield to calculate economic value.
+Version 2.0 - Dynamic parameterization with calculated ecosystem services.
 """
 
 import numpy as np
@@ -8,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib.ticker as ticker
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Union
 
 
 class TEVCalculator:
@@ -16,10 +17,10 @@ class TEVCalculator:
     Calculate Total Economic Value (TEV) for prescribed fire scenarios.
     
     Components:
-    - Timber Value (PV)
-    - Carbon Benefits (PVC)
-    - Ecosystem Services (PE)
-    - Land Value for Hunting/Leases (L)
+    - Timber Value (PV) - from biomass data + user-specified prices
+    - Carbon Benefits (PVC) - from emissions data + user-specified credit price
+    - Ecosystem Services (PE) - from water yield + user-specified species values
+    - Land Value for Hunting/Leases (L) - user-specified lease revenues
     """
     
     def __init__(self, random_seed: int = 42):
@@ -100,108 +101,153 @@ class TEVCalculator:
         else:
             return simulated_tevs_per_acre
     
-    def create_input_dataframe(
+    def create_economic_parameters(
         self,
         biomass_stats: Dict,
         emissions_stats: Dict,
+        water_yield_stats: Optional[Dict] = None,
+        user_params: Optional[Dict[str, Dict]] = None,
         carbon_credit_price: float = 10.0
-    ) -> pd.DataFrame:
+    ) -> Dict[str, Dict]:
         """
-        Create input DataFrame from Scripts 1 & 2 outputs.
+        Create complete economic parameters by merging calculated and user-specified values.
         
         Args:
             biomass_stats: Results from Script 1 (biomass statistics)
             emissions_stats: Results from Script 2 (carbon emissions)
+            water_yield_stats: Results from Script 4 (water yield) - optional
+            user_params: User-specified economic parameters per zone
             carbon_credit_price: Price per ton CO2e
             
         Returns:
-            DataFrame ready for TEV calculation
+            Dictionary of complete parameters for each zone
         """
-        data = []
+        economic_params = {}
         
-        # Extract data from both scripts
         for zone_name in biomass_stats.keys():
+            # Get calculated values
             biomass_data = biomass_stats[zone_name]
             emissions_data = emissions_stats.get(zone_name, {})
             
-            # Get values with safe defaults
+            # Extract biomass (V_t)
             agb_per_acre = biomass_data.get('AGB_per_acre_tons', 0)
             std_agb = biomass_data.get('AGB_StdDev_per_acre_tons', 0)
             
+            # Extract emissions (pvc_per_acre)
             pvc_mean = emissions_data.get('CO2_mean_tons_per_acre', 0)
             pvc_std = emissions_data.get('CO2_std_tons_per_acre', 0)
-            
-            # Apply carbon credit multiplier
             pvc_mean_adj = pvc_mean * carbon_credit_price
             pvc_std_adj = pvc_std * carbon_credit_price
             
-            data.append({
-                'Source': zone_name,
-                'agb_per_acre': agb_per_acre,
-                'std_agb_per_acre': std_agb,
-                'pvc_per_acre_mean': pvc_mean_adj,
-                'pvc_per_acre_std': pvc_std_adj,
-                'Method': 'ESA'  # Can be parameterized
-            })
+            # Extract water yield (water_quality_value) if available
+            if water_yield_stats and zone_name.replace('_LLP', '') in water_yield_stats:
+                water_data = water_yield_stats[zone_name.replace('_LLP', '')]
+                # Check if water_data is not None and has the required keys
+                if water_data and isinstance(water_data, dict):
+                    water_value = water_data.get('water_yield_per_acre_usd', 0)
+                    water_std = water_data.get('water_yield_std_per_acre_usd', water_value * 0.1)
+                else:
+                    # Water yield calculation failed, use user-provided or default
+                    water_value = 100.0
+                    water_std = 2.0
+            else:
+                # Use user-provided or default
+                water_value = 100.0
+                water_std = 2.0
+            
+            # Get user-specified parameters for this zone
+            if user_params and zone_name in user_params:
+                zone_user_params = user_params[zone_name]
+            else:
+                # Use defaults
+                zone_user_params = get_default_params_for_zone(zone_name)
+            
+            # Merge calculated and user-specified parameters
+            zone_params = {
+                # Calculated values (from scripts)
+                'V_t': (agb_per_acre, std_agb),
+                'pvc_per_acre': (pvc_mean_adj, pvc_std_adj),
+                'water_quality_value': (water_value, water_std),
+                
+                # User-specified values
+                'E_Pt': zone_user_params.get('E_Pt', (25.0, 3.0)),
+                'g': zone_user_params.get('g', (200.0, 30.0)),
+                'endangered_species_WTP': zone_user_params.get('endangered_species_WTP', (13.37, 2.0)),
+                'R_t_lease': zone_user_params.get('R_t_lease', [200, 150, 100, 50, 25]),
+                'T_lease': zone_user_params.get('T_lease', 5),
+                'r_lease': zone_user_params.get('r_lease', 0.05),
+                'epsilon_t': zone_user_params.get('epsilon_t', 0)
+            }
+            
+            economic_params[zone_name] = zone_params
         
-        return pd.DataFrame(data)
+        return economic_params
     
     def run_monte_carlo(
         self,
-        input_df: pd.DataFrame,
-        base_cases: Dict,
+        biomass_stats: Dict,
+        emissions_stats: Dict,
         case_acres: Dict,
+        water_yield_stats: Optional[Dict] = None,
+        user_params: Optional[Dict[str, Dict]] = None,
+        carbon_credit_price: float = 10.0,
         num_simulations: int = 10000
     ) -> pd.DataFrame:
         """
         Run Monte Carlo simulations for all cases.
         
         Args:
-            input_df: DataFrame with biomass and emissions data
-            base_cases: Dictionary of base parameters for each case
+            biomass_stats: Results from Script 1
+            emissions_stats: Results from Script 2
             case_acres: Dictionary of acres for each case
+            water_yield_stats: Results from Script 4 (optional)
+            user_params: User-specified economic parameters per zone
+            carbon_credit_price: Price per ton CO2e
             num_simulations: Number of simulations
             
         Returns:
             DataFrame with summary statistics
         """
+        # Create complete economic parameters
+        economic_params = self.create_economic_parameters(
+            biomass_stats=biomass_stats,
+            emissions_stats=emissions_stats,
+            water_yield_stats=water_yield_stats,
+            user_params=user_params,
+            carbon_credit_price=carbon_credit_price
+        )
+        
         all_results = []
         self.simulation_results = []
         
-        for _, row in input_df.iterrows():
-            case_name = row['Source']
-            method = row['Method']
+        for zone_name, zone_params in economic_params.items():
+            acres = case_acres.get(zone_name, 0)
             
-            # Get base parameters for this case
-            if case_name not in base_cases:
-                print(f"Warning: No base parameters for {case_name}, skipping")
+            if acres == 0:
+                print(f"Warning: No acreage specified for {zone_name}, skipping")
                 continue
             
-            # Copy base parameters and update with biomass/emissions data
-            case_params = base_cases[case_name].copy()
-            case_params['V_t'] = (row['agb_per_acre'], row['std_agb_per_acre'])
-            case_params['pvc_per_acre'] = (row['pvc_per_acre_mean'], row['pvc_per_acre_std'])
-            
-            acres = case_acres.get(case_name, 0)
+            print(f"  Running {num_simulations:,} simulations for {zone_name}...")
             
             # Run simulation
-            results = self.calculate_tev(case_params, acres, num_simulations)
+            results = self.calculate_tev(zone_params, acres, num_simulations)
             
             # Store summary statistics
             all_results.append({
-                'Case': case_name,
-                'Method': method,
+                'Case': zone_name,
+                'Acres': acres,
                 'Mean_TEV': np.mean(results),
                 'Std_TEV': np.std(results),
                 'Median_TEV': np.median(results),
                 'Q25_TEV': np.percentile(results, 25),
-                'Q75_TEV': np.percentile(results, 75)
+                'Q75_TEV': np.percentile(results, 75),
+                'Min_TEV': np.min(results),
+                'Max_TEV': np.max(results)
             })
             
             # Store full results for plotting
             self.simulation_results.append({
-                'Case': case_name,
-                'Method': method,
+                'Case': zone_name,
                 'TEV': results
             })
         
@@ -220,15 +266,11 @@ class TEVCalculator:
         
         plt.figure(figsize=figsize)
         
-        colors = {'OBIWAN': 'blue', 'ESA': 'green'}
-        
         for entry in self.simulation_results:
-            color = colors.get(entry['Method'], 'gray')
             sns.histplot(
                 entry['TEV'],
                 kde=True,
-                color=color,
-                label=f"{entry['Case']} - {entry['Method']}",
+                label=entry['Case'],
                 stat='density',
                 alpha=0.5
             )
@@ -262,16 +304,13 @@ class TEVCalculator:
             for val in entry['TEV']:
                 plot_data.append({
                     'Case': entry['Case'],
-                    'Method': entry['Method'],
                     'TEV': val
                 })
         
         plot_df = pd.DataFrame(plot_data)
         
         plt.figure(figsize=figsize)
-        
-        colors = {'OBIWAN': 'blue', 'ESA': 'green'}
-        sns.boxplot(data=plot_df, x='Case', y='TEV', hue='Method', palette=colors)
+        sns.boxplot(data=plot_df, x='Case', y='TEV')
         
         plt.title(title)
         plt.xlabel('Scenario (Case)')
@@ -294,39 +333,81 @@ class TEVCalculator:
             print("No results to export. Run Monte Carlo first.")
 
 
-# Default economic parameters for different scenarios
-DEFAULT_ECONOMIC_PARAMS = {
-    "EIA_CS1_LLP": {
-        'E_Pt': (7.50, 1),      # Stumpage price ($/ton)
-        'g': (375, 50),          # Regeneration cost ($/acre)
-        'water_quality_value': (110.56, 2.04),
-        'endangered_species_WTP': (13.37 * 0.1, 1),
-        'R_t_lease': [50, 20, 0, 0, 0],
-        'T_lease': 5,
-        'r_carbon': 0.05,
-        'r_ecosystem': 0.05,
-        'r_lease': 0.06
-    },
-    "EIA_CS2_LLP": {
-        'E_Pt': (21, 3),
-        'g': (200, 30),
-        'water_quality_value': (100.16, 1.38),
-        'endangered_species_WTP': (13.37 * 0.5, 2),
-        'R_t_lease': [200, 100, 50, 20, 10],
-        'T_lease': 5,
-        'r_carbon': 0.05,
-        'r_ecosystem': 0.05,
-        'r_lease': 0.055
-    },
-    "EIA_CS3_LLP": {
-        'E_Pt': (36, 5),
-        'g': (50, 10),
-        'water_quality_value': (120.01, 0.76),
-        'endangered_species_WTP': (13.37 * 1, 3),
-        'R_t_lease': [700, 700, 700, 700, 700],
-        'T_lease': 5,
-        'r_carbon': 0.05,
-        'r_ecosystem': 0.05,
-        'r_lease': 0.05
-    }
-}
+def get_default_params_for_zone(zone_name: str) -> Dict:
+    """
+    Get default economic parameters for a zone.
+    
+    Args:
+        zone_name: Name of the zone
+        
+    Returns:
+        Dictionary of default parameters
+    """
+    # Default parameters based on zone characteristics
+    if 'CS1' in zone_name:
+        # Severe wildfire scenario
+        return {
+            'E_Pt': (7.50, 1),      # Low stumpage price
+            'g': (375, 50),          # High regeneration cost
+            'endangered_species_WTP': (13.37 * 0.1, 1),  # Low species value
+            'R_t_lease': [50, 20, 0, 0, 0],  # Declining lease revenues
+            'T_lease': 5,
+            'r_lease': 0.06
+        }
+    elif 'CS2' in zone_name:
+        # Mitigated wildfire scenario
+        return {
+            'E_Pt': (21, 3),
+            'g': (200, 30),
+            'endangered_species_WTP': (13.37 * 0.5, 2),
+            'R_t_lease': [200, 100, 50, 20, 10],
+            'T_lease': 5,
+            'r_lease': 0.055
+        }
+    elif 'CS3' in zone_name:
+        # Healthy/prescribed burn scenario
+        return {
+            'E_Pt': (36, 5),
+            'g': (50, 10),
+            'endangered_species_WTP': (13.37 * 1, 3),
+            'R_t_lease': [700, 700, 700, 700, 700],
+            'T_lease': 5,
+            'r_lease': 0.05
+        }
+    else:
+        # Generic defaults
+        return {
+            'E_Pt': (25, 3),
+            'g': (200, 30),
+            'endangered_species_WTP': (13.37, 2),
+            'R_t_lease': [200, 200, 200, 200, 200],
+            'T_lease': 5,
+            'r_lease': 0.05
+        }
+
+
+# Helper function to create user parameter template
+def create_user_params_template(zone_names: list) -> Dict[str, Dict]:
+    """
+    Create a template for user parameters.
+    
+    Args:
+        zone_names: List of zone names
+        
+    Returns:
+        Dictionary template that users can fill in
+    """
+    template = {}
+    
+    for zone_name in zone_names:
+        template[zone_name] = {
+            'E_Pt': (25.0, 3.0),      # Stumpage price ($/ton) ± std
+            'g': (200.0, 30.0),        # Regeneration cost ($/acre) ± std
+            'endangered_species_WTP': (13.37, 2.0),  # Willingness-to-pay ($/acre) ± std
+            'R_t_lease': [200, 200, 200, 200, 200],  # Annual lease revenues ($/acre/year)
+            'T_lease': 5,              # Lease period (years)
+            'r_lease': 0.05,           # Discount rate
+            'epsilon_t': 0             # Price shock (optional)
+        }
+    
+    return template
