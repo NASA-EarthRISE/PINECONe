@@ -62,7 +62,7 @@ class WaterYieldCalculator:
             geometry = aoi
         
         # Load MODIS Evapotranspiration
-        modis_et = (ee.ImageCollection('MODIS/NTSG/MOD16A2/105')
+        modis_et = (ee.ImageCollection('MODIS/061/MOD16A2GF')
             .filterDate(start_date, end_date)
             .filterBounds(geometry)
             .select('ET'))
