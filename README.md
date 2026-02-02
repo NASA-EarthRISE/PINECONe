@@ -81,9 +81,9 @@ PINECONe integrates three key components for prescribed fire analysis:
 - Python 3.8+
 - Google Earth Engine account (free)
 
-### Option 1: Install from PyPI (when published)
+### Option 1: Install from [PyPI]([URL](https://pypi.org/project/pinecone-fire/0.1.0/))
 ```bash
-pip install pinecone-fire
+pip install pinecone-fire==0.1.0
 ```
 
 ### Option 2: Install from GitHub
