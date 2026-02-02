@@ -237,7 +237,7 @@ class WaterYieldCalculator:
         geometry = aoi.geometry() if isinstance(aoi, ee.FeatureCollection) else aoi
         
         if output_type == 'et':
-            collection = (ee.ImageCollection('MODIS/NTSG/MOD16A2/105')
+            collection = (ee.ImageCollection('MODIS/061/MOD16A2GF')
                 .filterDate(start_date, end_date)
                 .filterBounds(geometry)
                 .select('ET'))
