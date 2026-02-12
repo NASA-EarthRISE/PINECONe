@@ -311,6 +311,9 @@ PINECONe/
 │       │   ├── __init__.py
 │       │   ├── biomass_stats.py     # BiomassStatsCalculator
 │       │   └── biomass_change.py    # BiomassChangeCalculator
+|       ├── ecosystem/
+│       │   ├── __init__.py
+│       │   ├── water_yield.py       # Calaculates Water value
 │       └── economics/
 │           ├── __init__.py
 │           └── tev_calculator.py    # TEVCalculator
