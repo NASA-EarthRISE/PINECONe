@@ -16,7 +16,7 @@ class WaterYieldCalculator:
     """
     
     # Constants
-    M2_PER_ACRE = 4046.86
+    M2_PER_ACRE = 4047
     KG_TO_KL = 0.001  # 1 kg water = 0.001 kL
     ET_SCALE_FACTOR = 0.1  # MODIS ET scaling factor
     WATER_PRICE_PER_KL = 0.018  # $/kL (default, can be changed)
