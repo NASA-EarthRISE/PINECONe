@@ -10,7 +10,7 @@ A Python package for analyzing prescribed fire impacts on forest ecosystems, com
 
 ---
 
-Mayer, T., Walker, K., & Basu, R. (2026). NASA-EarthRISE/PINECONe: v0.1.0 (v0.1.0). Zenodo. https://doi.org/10.5281/zenodo.18419563
+Mayer, T., Walker, K., & Basu, R., Delgado F. (2026). NASA-EarthRISE/PINECONe: v0.1.0 (v0.1.0). Zenodo. https://doi.org/10.5281/zenodo.18419563
 
 ## 📋 Table of Contents
 
