@@ -545,18 +545,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **GitHub Issues**: https://github.com/NASA-EarthRISE/PINECONe/issues
 - **Email**: [timothy.j.mayer@nasa.gov]
 
----
 
-## 🗺️ Roadmap
-
-- [ ] Publish to PyPI
-- [ ] Add ReadTheDocs documentation
-- [ ] Support for additional biomass products
-- [ ] Web-based dashboard
-- [ ] Integration with carbon registries
-- [ ] Machine learning for fire detection
-- [ ] Multi-year time series analysis
-
----
-
-**Made with 🌲 by NASA EarthRISE**
